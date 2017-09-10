@@ -1,0 +1,302 @@
+import pickle, operator, numpy, random, re
+from pprint import pprint
+import BNUtilities as bn
+
+# list of all domains
+domain_list = []
+
+# contains the possible relations for each domain
+domain_to_relations = {}
+
+# dict with list of questions ready to be asked for each domain 
+questions_to_ask = {}
+
+# questions which don't have to be asked (nonsense..)
+questions_to_avoid = {}
+
+# question patterns
+question_patterns = {}
+
+# temporary tuples
+tmp_tuples = []
+
+def getQuestionToAsk(domain):
+	if not questions_to_ask:
+		load_questions_to_ask()
+	if not questions_to_avoid:
+		load_questions_to_avoid()
+
+	if domain:
+		if domain not in questions_to_ask.keys() or \
+				len(questions_to_ask[domain]) == 0:
+			generate_questions(domain, 10)
+			
+		question = questions_to_ask[domain][0]
+		del questions_to_ask[domain][0]
+		return question
+	
+	return None
+
+def getDomainList():
+	if len(domain_list) == 0:
+		load_domain_relations_mapping()
+	return domain_list
+
+def avoidQuestion(domain, concept, relation):
+	if domain in questions_to_ask:
+		for i, q in enumerate(questions_to_ask[domain]):
+			if q["relation"] == relation and q["concept"] == concept:
+				del questions_to_ask[domain][i]
+	
+	if not domain in questions_to_avoid:
+		questions_to_avoid.update({domain: []})
+	
+	questions_to_avoid[domain].append({
+			"relation" : relation, 
+			"concept" : concept
+		})
+
+def addQuestionToAsk(concept, concept_ids, relation):
+	for id in concept_ids:
+		domain = getDomain(id["babelSynsetID"])
+		if domain:
+			if domain not in questions_to_ask:
+				questions_to_ask.update({domain: []})
+			questions_to_ask[domain].insert(0,{
+					"relation": relation, 
+					"concept": id["babelSynsetID"], 
+					"fromuser": True
+				}) 
+			print concept + " " + relation + " added to " + domain 
+	#pprint(questions_to_ask)
+
+def getDomain(concept_id):
+	babeldomains_filePath = "chatbot_maps/BabelDomains_full/BabelDomains/babeldomains_babelnet.txt"
+	with open(babeldomains_filePath, "r") as bd_file:
+		for i, line in enumerate(bd_file):
+			id = line.split("\t")[0]
+			if concept_id == id:
+				bd_file.close()
+				return line.split("\t")[1].lower()
+		bd_file.close()
+	print "Domain of concept_ID not found!"
+	return None
+
+def findTmpTuples(concepts, relation):
+	tuples = []
+	for tuple in tmp_tuples:
+		if tuple["relation"] == relation:
+			matches = re.findall(r'(bn:[A-Za-z0-9]+)', tuple["c1"])
+			for match in matches:
+				for concept in concepts:
+					if concept == match:
+						tuples.append(tuple)
+	return tuples
+
+def saveTuple(tuple):
+	tmp_tuples.append(tuple)
+
+def serializeStuff():
+	## save tuples to KB server
+	print tmp_tuples
+	bn.saveTuplesToServer(tmp_tuples)
+	del tmp_tuples[:]
+	print tmp_tuples
+	
+	## Save to-ask questions
+	 # (only those asked by the user)
+	for qd in questions_to_ask.keys():
+		questions_to_ask[qd] = [qa for qa in questions_to_ask[qd] if qa["fromuser"]]
+	with open("data/questions_to_ask", "wb") as avoid_file:
+		avoid_file.write(pickle.dumps(questions_to_ask))
+		avoid_file.close()
+		
+		print str(sum([len(questions_to_ask[k]) for k in questions_to_ask.keys()])) + " questions to ask saved"
+
+	## save to-avoid questions
+	with open("data/questions_to_avoid", "wb") as avoid_file:
+		avoid_file.write(pickle.dumps(questions_to_avoid))
+		avoid_file.close()
+		
+		print str(sum([len(questions_to_avoid[k]) for k in questions_to_avoid.keys()])) + " questions to avoid saved"
+
+def getQuestionPattern(relation):
+	if len(question_patterns) == 0:
+		load_question_patterns()
+	
+	pattern = numpy.random.choice(question_patterns[relation])
+	
+	return pattern
+
+def load_question_patterns():
+	filePath = "data/question_patterns.tsv"
+	
+	with open(filePath, "r") as qp_file:
+		patterns = qp_file.read().splitlines()
+		
+		for pattern in patterns:
+			pattern = pattern.split("\t")
+			relation = pattern[1].upper()
+			if relation not in question_patterns:
+				question_patterns.update({
+						relation : []
+					})
+			question_patterns[relation].append(pattern[0])
+		
+		qp_file.close()
+
+def removeOverlappingIDS(ids):
+	for id in ids:
+		ids_copy = ids[:]
+		ids_copy.remove(id)
+		for _id in ids_copy:
+			# overlapping check
+			if 	(id["tokenFragment"]["start"] <= _id["tokenFragment"]["start"] and \
+						id["tokenFragment"]["end"] >= _id["tokenFragment"]["start"]) or \
+						(id["tokenFragment"]["end"] >= _id["tokenFragment"]["end"] and \
+						id["tokenFragment"]["start"] <= _id["tokenFragment"]["end"]):
+				# retain the biggest btw the two
+				sz = id["tokenFragment"]["end"] - id["tokenFragment"]["start"]
+				_sz = _id["tokenFragment"]["end"] - _id["tokenFragment"]["start"]
+				if sz >= _sz:
+					ids.remove(_id)
+				else:
+					try:
+						ids.remove(id)
+					except ValueError:
+						pass
+	return ids
+
+def getDomainsToPropose(num=5):
+	if len(domain_list) == 0:
+		load_domain_relations_mapping()
+	prop_dom = []
+	for i in range(num):
+		prop_dom.append(numpy.random.choice(list(set(domain_list) - set(prop_dom))))
+	return prop_dom
+
+# Generate some questions for the enriching session:
+#	NEEDS the files generated by extract_statistics.py
+def generate_questions(domain=None, num_questions=10, ):
+	concepts_to_relation_filePath = "data/concepts_to_relations"
+	domains_to_concepts_filePath = "data/domain_to_concepts"
+
+	if not questions_to_avoid:
+		load_questions_to_avoid()
+
+	with open(concepts_to_relation_filePath, 'rb') as f:
+		c_to_r = pickle.load(f)
+		with open(domains_to_concepts_filePath, 'rb') as f1:
+			d_to_c = pickle.load(f1)
+
+			if domain is not None:
+				## Sample a concept according to frequecy in domain
+				domain_dict = d_to_c[domain]
+				# Sort the concepts, less_freq -> most_freq
+				sorted_c = sorted(domain_dict.items(), key=operator.itemgetter(1))
+
+				print "[BOT] # concepts found about " + domain + " = " + str(len(sorted_c))
+
+				so_c = [i[0] for i in sorted_c]
+				so_f = [i[1] for i in sorted_c]
+				so_f.reverse() # frequencies in reverse order
+				so_f = numpy.divide(so_f, float(numpy.sum(so_f)))
+				
+				for _ in range(num_questions):
+					sampled_concept = numpy.random.choice(so_c, p=so_f)
+
+					## Sample a relation according to frequency in concept
+					concept_dict = c_to_r[sampled_concept]
+					# Sort the relations, less_freq -> most_freq
+					sorted_r = sorted(concept_dict.items(), key=operator.itemgetter(1))
+					so_r = [i[0].upper() for i in sorted_r]
+
+					# Take a relation not already used
+					if len(domain_to_relations) == 0:
+						load_domain_relations_mapping()
+					relations = domain_to_relations[domain]
+					
+					avoid_r = []
+					if domain in questions_to_avoid:
+						avoid_r = [q["relation"] for q in questions_to_avoid[domain] \
+								if q["concept"] == sampled_concept]
+					
+					legals = list(set(relations) - set(avoid_r))
+					remainers = list(set(legals) - set(so_r))
+					print relations
+					print avoid_r
+					print legals
+					print so_r
+					print remainers
+					if len(remainers) > 0:
+						sampled_relation = random.choice(remainers)
+					elif len(legals) > 0:
+						so_f = [0]*len(sorted_r)
+						for i, r in enumerate(sorted_r):
+							if r[0] not in avoid_r:
+								so_f[i] = r[1]
+						#so_f = [i[1] for i in sorted_r]
+						so_f.reverse() # frequencies in reverse order
+						so_f = numpy.divide(so_f, float(numpy.sum(so_f)))
+						sampled_relation = numpy.random.choice(so_r, p=so_f)
+					else:
+						num_questions += 1
+						continue
+					
+					
+					if domain not in questions_to_ask.keys():
+						questions_to_ask.update({
+								domain: []
+							})
+					questions_to_ask[domain].append({
+							"relation": sampled_relation, 
+							"concept": sampled_concept,
+							"fromuser": False
+						})
+	return None
+	
+def load_questions_to_ask():
+	# Load questions to ask
+	with open("data/questions_to_ask", "rb") as ask_file:
+		try:
+			qa = pickle.load(ask_file)
+			for k in qa.keys():
+				if k not in questions_to_ask:
+					questions_to_ask.update({
+							k : []
+						})
+				questions_to_ask[k] += qa[k]
+			print "to-ask loaded " + str(sum([len(questions_to_ask[k]) for k in questions_to_ask.keys()]))
+		except EOFError:
+			pass
+
+def load_questions_to_avoid():
+	# Load questions to avoid
+	with open("data/questions_to_avoid", "rb") as avoid_file:
+		try:
+			qa = pickle.load(avoid_file)
+			for k in qa.keys():
+				if k not in questions_to_avoid:
+					questions_to_avoid.update({
+							k : []
+						})
+				questions_to_avoid[k] += qa[k]
+			print "to-avoid loaded " + str(sum([len(questions_to_avoid[k]) for k in questions_to_avoid.keys()]))
+		except EOFError:
+			pass
+
+def load_domain_relations_mapping():
+	domain_relations_file_path = 'chatbot_maps/domains_to_relations.tsv'
+	domains = open(domain_relations_file_path).read().lower().splitlines()
+	for domain in domains:
+		elems = domain.split("\t")
+		domain_list.append(elems[0])
+		domain_to_relations.update(
+				{elems[0]: []})
+		for rel in elems[1:]:
+			if rel == "colorpattern":
+				rel = "COLOR"
+			elif rel == "howtouse":
+				rel = "HOW_TO_USE"
+			rel = rel.upper()
+			domain_to_relations[elems[0]].append(rel)

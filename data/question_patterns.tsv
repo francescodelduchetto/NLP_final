@@ -1,0 +1,59 @@
+what color is X ?	color
+what colour is X ?	color
+What is the color of X ?	color
+what's the color of X ? 	color
+what is the purpose of X ?	purpose
+what purpose does X have ?	purpose
+What is the purpose of using X ?	purpose
+What is X used for ?	purpose
+What is the aim of using X ?	purpose
+What is the purpose of X ?	purpose
+what does X smell like ?	smell
+What is the smell of X ?	smell
+what smell X has?	smell
+what sound does X produce ?	sound
+what does X sound like ?	sound
+what sound does X make ?	sound
+what is the sound made by X ?	sound
+what is the sound of X ?	sound
+What sound does X emit ?	sound
+what does X taste like ?	taste
+What is the taste of X ?	taste
+What is the flavour of X?	taste
+when does X occur ?	time
+when is X ?	time
+when does X held ?	time
+when did X happen?	time
+what can X do ?	activity
+what is X able to do ?	activity
+What is an activity that X do?	activity
+what is similar to X ?	similarity
+what's something similar to X ? 	similarity
+What is X similar to?	similarity
+what is the shape of X ?	shape
+what shape does X have ?	shape
+What is the form of X ?	shape
+What is X ?	generalization
+To which class of objects X belong to ?	generalization
+What is the category of X?	generalization
+What is X?	generalization
+How does X look like ?	similarity
+What is X similar to ?	similarity
+What does X resemble to ?	similarity
+How do you use a X ?	how_to_use
+What do you use X for ?	how_to_use
+How is X used ?	how_to_use
+what is a part of X ? 	part
+What is X formed by ? 	part
+what is a component of X ?	part
+What is X made of ?	material
+What is the material of X ?	material
+What is X built of ?	material
+What is the size of X ?	size
+How big is X ?	size 
+Where is X ?	place
+Where can X be found ?	place
+Where is X located ?	place
+What is a kind of X ?	specialization
+What is a subclass of X ?	specialization
+What is an example of X ?	specialization
