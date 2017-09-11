@@ -2,9 +2,8 @@
 
 - download Worc2Vec model ``GoogleNews-vectors-negative300.bin'' inside the data/ folder
 - extract ``chatbot_maps.tar.gz'' inside the root folder
-
-
 - run $ python main.py
-NOTE: The first startup may require some minutes to load all the resources and dowload the local KB.
-
 - Chat with @franlp_bot on Telegram !
+
+
+  NOTE: The first startup may require some minutes to load all the resources and dowload the local KB.
