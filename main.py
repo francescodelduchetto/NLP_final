@@ -12,19 +12,6 @@ import BNUtilities as bn
 import enrichingUtilities as enrich
 import dataUtilities as data
 
-## TODO list:
-# (partly)- clean concepts received 
-# (done)- convert concepts to bn ids 
-# (done)- extract relations (re-train concept extractor with relations?) <- THIS
-# - augment dataset with patterns and retrain
-# (done)- database for fastly search the answer
-# - search for multiple senses (bn_ids) for a given word, until we find an entry in the database
-# (done)- comandi con /ask /reply /stop
-# - save questions to avoid to file
-# (done)- deal with c1 and c2 in the question (yes/no) answer
-# (done)- use question patterns
-# - do not ask always the same saved questions
-
 bot = None
 
 extractor = None
